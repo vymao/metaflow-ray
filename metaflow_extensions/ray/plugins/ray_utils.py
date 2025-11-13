@@ -39,7 +39,13 @@ def warning_message(message, prefix="[@metaflow_ray]"):
 
 
 def start_ray_processes(
-    ubf_context, main_ip, main_port, node_index, temp_dir, logging_level=None, log_style=None
+    ubf_context,
+    main_ip,
+    main_port,
+    node_index,
+    temp_dir,
+    logging_level=None,
+    log_style=None,
 ):
     # When ray processes start and finish properly it means that the process
     # would have successfully registered as a part of the cluster.
@@ -133,7 +139,7 @@ def _extract_ray_nodes():
 
 
 def wait_for_ray_nodes_to_join(max_wait_time):
-    # This function will wait untill all ray nodes have joined the cluster.
+    # This function will wait until all ray nodes have joined the cluster.
     # If nodes have not joined after a certain amount of timeout it will raise an exception.
     # We leverage subprocesses to extract the number of nodes that have joined the cluster.
     # We do this so that users don't face any error when they call `ray.init` in their user code.
@@ -153,9 +159,10 @@ def wait_for_ray_nodes_to_join(max_wait_time):
                 time.sleep(1)
                 return ray_nodes
         if _iters % 10 == 0:
+            node_count = str(len(ray_nodes)) if ray_nodes is not None else "unknown"
             warning_message(
                 "Waiting for all `ray` nodes to join the cluster. Current number of nodes in cluster: %s"
-                % str(len(ray_nodes))
+                % node_count
             )
         _iters += 1
         time.sleep(1)
