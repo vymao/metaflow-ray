@@ -316,17 +316,27 @@ class RayDecorator(ParallelDecorator):
         """
         self.wait_for_all_nodes_to_start()
 
-        # Create a temporary directory for Ray
-        ray_temp_dir = tempfile.mkdtemp(prefix="metaflow_ray_")
-
-        # Log which task is using which temp directory
         import socket
-
         node_type = "control" if self.ubf_context == UBF_CONTROL else "worker"
-        warning_message(
-            f"[{node_type}][node-index={current.parallel.node_index}] "
-            f"Created Ray temp dir: {ray_temp_dir} on host: {socket.gethostname()}"
-        )
+        
+        # Only the control node creates the temp directory
+        # Worker nodes will get the path from the datastore
+        if self.ubf_context == UBF_CONTROL:
+            ray_temp_dir = tempfile.mkdtemp(prefix="metaflow_ray_")
+            warning_message(
+                f"[{node_type}][node-index={current.parallel.node_index}] "
+                f"Created Ray temp dir: {ray_temp_dir} on host: {socket.gethostname()}"
+            )
+            # Share the temp dir path with worker nodes via datastore
+            self.deco_datastore.put("ray_temp_dir", ray_temp_dir, overwrite=True)
+        else:
+            # Worker nodes read the temp dir path from the control node
+            ray_temp_dir_blob = self.deco_datastore.get("ray_temp_dir")
+            ray_temp_dir = ray_temp_dir_blob.text
+            warning_message(
+                f"[{node_type}][node-index={current.parallel.node_index}] "
+                f"Using Ray temp dir from control node: {ray_temp_dir} on host: {socket.gethostname()}"
+            )
 
         main_port = self._resolve_port()
         main_ip = resolve_main_ip()
