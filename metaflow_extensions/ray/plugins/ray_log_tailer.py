@@ -28,13 +28,17 @@ class RayLogTailer:
         """Find the Ray session directory using the session_latest symlink."""
         # Try the specified temp dir first
         if self.ray_temp_dir:
+            print(
+                f"[RAY_LOG_TAILER] Checking for session_latest at: {self.ray_temp_dir}: {os.listdir(self.ray_temp_dir)}"
+            )
+
             session_latest = os.path.join(self.ray_temp_dir, "session_latest")
             print(f"[RAY_LOG_TAILER] Checking for session_latest at: {session_latest}")
             if os.path.exists(session_latest):
                 return session_latest
             else:
                 print(f"[RAY_LOG_TAILER] session_latest not found at: {session_latest}")
-        
+
         # Fallback: Check Ray's default location
         default_ray_dir = "/tmp/ray"
         if os.path.exists(default_ray_dir):
@@ -45,7 +49,7 @@ class RayLogTailer:
                     file=sys.stderr,
                 )
                 return session_latest
-        
+
         return None
 
     def _tail_file(self, filepath):
@@ -86,7 +90,7 @@ class RayLogTailer:
                 if os.path.exists(logs_dir):
                     print(f"[RAY_LOG_TAILER] Found Ray logs directory at {logs_dir}")
                     break
-            
+
             if attempt == 0:
                 print(
                     "[RAY_LOG_TAILER] Waiting for Ray session directory to be created..."
