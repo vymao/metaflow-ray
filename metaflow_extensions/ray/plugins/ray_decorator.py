@@ -330,9 +330,19 @@ class RayDecorator(ParallelDecorator):
             # Share the temp dir path with worker nodes via datastore
             self.deco_datastore.put("ray_temp_dir", ray_temp_dir, overwrite=True)
         else:
-            # Worker nodes read the temp dir path from the control node
-            ray_temp_dir_blob = self.deco_datastore.get("ray_temp_dir")
-            ray_temp_dir = ray_temp_dir_blob.text
+            # Worker nodes wait for and read the temp dir path from the control node
+            warning_message(
+                f"[{node_type}][node-index={current.parallel.node_index}] "
+                f"Waiting for Ray temp dir from control node..."
+            )
+            ray_temp_dir_data = task_sync_barrier(
+                barrier_name="ray_temp_dir_barrier",
+                datastore=self.deco_datastore,
+                keys=["ray_temp_dir"],
+                max_wait_time=300,
+                description="Waiting for control node to create Ray temp directory",
+            )
+            ray_temp_dir = ray_temp_dir_data["ray_temp_dir"].text
             warning_message(
                 f"[{node_type}][node-index={current.parallel.node_index}] "
                 f"Using Ray temp dir from control node: {ray_temp_dir} on host: {socket.gethostname()}"
