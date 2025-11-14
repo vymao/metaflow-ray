@@ -11,7 +11,9 @@ class RayLogTailer:
     Tails Ray log files and streams them to stdout.
     """
 
-    def __init__(self, ray_temp_dir, poll_interval, include_patterns):
+    def __init__(
+        self, ray_temp_dir, poll_interval, include_patterns, session_dir_wait_timeout=30
+    ):
         self.ray_temp_dir = ray_temp_dir
         self.poll_interval = poll_interval
         self.stop_event = threading.Event()
@@ -20,6 +22,7 @@ class RayLogTailer:
         # Only capture worker stdout/stderr (actor output)
         # worker-*.out/err excludes system components like raylet.out, gcs_server.out
         self.include_patterns = include_patterns
+        self.session_dir_wait_timeout = session_dir_wait_timeout
 
     def _find_ray_session_dir(self):
         """Find the Ray session directory using the session_latest symlink."""
@@ -59,19 +62,26 @@ class RayLogTailer:
         """Main loop that tails all Ray log files."""
         print("[RAY_LOG_TAILER] Starting Ray log tailer...")
 
-        # Find the session directory once before starting the loop
-        session_dir = self._find_ray_session_dir()
-        if not session_dir:
-            print(
-                "[RAY_LOG_TAILER] Ray session directory not found. Cannot tail logs.",
-                file=sys.stderr,
-            )
-            return
+        # Wait for the session directory to appear (Ray might still be initializing)
+        session_dir = None
+        logs_dir = None
+        for attempt in range(self.session_dir_wait_timeout):
+            session_dir = self._find_ray_session_dir()
+            if session_dir:
+                logs_dir = os.path.join(session_dir, "logs")
+                if os.path.exists(logs_dir):
+                    print(f"[RAY_LOG_TAILER] Found Ray logs directory at {logs_dir}")
+                    break
 
-        logs_dir = os.path.join(session_dir, "logs")
-        if not os.path.exists(logs_dir):
+            if attempt == 0:
+                print(
+                    "[RAY_LOG_TAILER] Waiting for Ray session directory to be created..."
+                )
+            time.sleep(1)
+
+        if not session_dir or not logs_dir or not os.path.exists(logs_dir):
             print(
-                f"[RAY_LOG_TAILER] Ray logs directory not found at {logs_dir}. Cannot tail logs.",
+                "[RAY_LOG_TAILER] Ray session directory not found after waiting. Cannot tail logs.",
                 file=sys.stderr,
             )
             return
