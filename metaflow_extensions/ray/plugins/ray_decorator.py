@@ -250,6 +250,10 @@ class RayDecorator(ParallelDecorator):
             # Only captures worker-*.out and worker-*.err files (actor output)
             log_tailer = None
             if self.attributes["enable_worker_logs"]:
+                warning_message(
+                    f"[worker][node-index={current.parallel.node_index}] "
+                    f"Starting log tailer for Ray temp dir: {ray_temp_dir}"
+                )
                 log_tailer = RayLogTailer(
                     ray_temp_dir=ray_temp_dir,
                     poll_interval=1.0,
@@ -315,6 +319,15 @@ class RayDecorator(ParallelDecorator):
         # Create a temporary directory for Ray
         ray_temp_dir = tempfile.mkdtemp(prefix="metaflow_ray_")
 
+        # Log which task is using which temp directory
+        import socket
+
+        node_type = "control" if self.ubf_context == UBF_CONTROL else "worker"
+        warning_message(
+            f"[{node_type}][node-index={current.parallel.node_index}] "
+            f"Created Ray temp dir: {ray_temp_dir} on host: {socket.gethostname()}"
+        )
+
         main_port = self._resolve_port()
         main_ip = resolve_main_ip()
         start_ray_processes(
@@ -329,5 +342,15 @@ class RayDecorator(ParallelDecorator):
         wait_for_ray_nodes_to_join(
             self.attributes["all_nodes_started_timeout"] or 300, main_port
         )
+        
+        # Debug: Show what Ray actually created in the temp dir
+        try:
+            contents = os.listdir(ray_temp_dir)
+            warning_message(
+                f"[{node_type}][node-index={current.parallel.node_index}] "
+                f"Contents of Ray temp dir after start: {contents}"
+            )
+        except Exception as e:
+            warning_message(f"Could not list temp dir: {e}")
 
         return ray_temp_dir

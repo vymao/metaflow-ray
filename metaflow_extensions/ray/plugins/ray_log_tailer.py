@@ -28,44 +28,69 @@ class RayLogTailer:
         """Find the Ray session directory using the session_latest symlink."""
         # Try the specified temp dir first
         if self.ray_temp_dir:
-            print(
-                f"[RAY_LOG_TAILER] Checking for session_latest at: {self.ray_temp_dir}: {os.listdir(self.ray_temp_dir)}"
-            )
-            print(
-                f"[RAY_LOG_TAILER] Checking for session_latest at: /tmp: {os.listdir('/tmp')}"
-            )
-
-            # Print contents of every subdirectory in /tmp
-            try:
-                for item in os.listdir("/tmp"):
-                    item_path = os.path.join("/tmp", item)
-                    if os.path.isdir(item_path):
-                        try:
-                            contents = os.listdir(item_path)
-                            print(f"[RAY_LOG_TAILER] /tmp/{item}: {contents}")
-                        except (PermissionError, OSError) as e:
-                            print(f"[RAY_LOG_TAILER] /tmp/{item}: [cannot read - {e}]")
-            except Exception as e:
-                print(f"[RAY_LOG_TAILER] Error listing /tmp subdirectories: {e}")
-
             session_latest = os.path.join(self.ray_temp_dir, "session_latest")
             print(f"[RAY_LOG_TAILER] Checking for session_latest at: {session_latest}")
             if os.path.exists(session_latest):
+                print(
+                    f"[RAY_LOG_TAILER] ✓ Found session_latest in specified temp dir: {self.ray_temp_dir}"
+                )
                 return session_latest
             else:
-                print(f"[RAY_LOG_TAILER] session_latest not found at: {session_latest}")
+                print(
+                    f"[RAY_LOG_TAILER] ✗ session_latest not found in: {self.ray_temp_dir}"
+                )
+                try:
+                    contents = os.listdir(self.ray_temp_dir)
+                    print(f"[RAY_LOG_TAILER]   Contents: {contents}")
+                except Exception as e:
+                    print(f"[RAY_LOG_TAILER]   Could not list directory: {e}")
+
+        # Search for session_latest in any metaflow_ray_* directories in /tmp
+        print(
+            "[RAY_LOG_TAILER] Searching for session_latest in other metaflow_ray_* directories..."
+        )
+        try:
+            metaflow_ray_dirs = [
+                item
+                for item in os.listdir("/tmp")
+                if item.startswith("metaflow_ray_")
+                and os.path.isdir(os.path.join("/tmp", item))
+            ]
+            print(
+                f"[RAY_LOG_TAILER] Found {len(metaflow_ray_dirs)} metaflow_ray_* directories: {metaflow_ray_dirs}"
+            )
+
+            for item in metaflow_ray_dirs:
+                item_path = os.path.join("/tmp", item)
+                session_latest = os.path.join(item_path, "session_latest")
+                if os.path.exists(session_latest):
+                    print(
+                        f"[RAY_LOG_TAILER] ✓ Found session_latest in {item_path}",
+                        file=sys.stderr,
+                    )
+                    return session_latest
+                else:
+                    try:
+                        contents = os.listdir(item_path)
+                        print(f"[RAY_LOG_TAILER]   {item}: {contents}")
+                    except (PermissionError, OSError):
+                        pass
+        except Exception as e:
+            print(f"[RAY_LOG_TAILER] Error searching /tmp: {e}")
 
         # Fallback: Check Ray's default location
+        print("[RAY_LOG_TAILER] Checking Ray's default location...")
         default_ray_dir = "/tmp/ray"
         if os.path.exists(default_ray_dir):
             session_latest = os.path.join(default_ray_dir, "session_latest")
             if os.path.exists(session_latest):
                 print(
-                    f"[RAY_LOG_TAILER] Using Ray default temp dir at {default_ray_dir}",
+                    f"[RAY_LOG_TAILER] ✓ Found session_latest in default Ray dir: {default_ray_dir}",
                     file=sys.stderr,
                 )
                 return session_latest
 
+        print("[RAY_LOG_TAILER] ✗ Could not find session_latest anywhere")
         return None
 
     def _tail_file(self, filepath):
