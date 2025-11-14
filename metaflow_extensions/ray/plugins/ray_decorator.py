@@ -324,4 +324,6 @@ class RayDecorator(ParallelDecorator):
             logging_level=self.attributes["logging_level"],
             log_style=self.attributes["log_style"],
         )
-        wait_for_ray_nodes_to_join(self.attributes["all_nodes_started_timeout"] or 300)
+        wait_for_ray_nodes_to_join(
+            self.attributes["all_nodes_started_timeout"] or 300, main_port
+        )

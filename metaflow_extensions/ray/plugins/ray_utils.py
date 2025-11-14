@@ -123,22 +123,34 @@ def start_ray_processes(
     return runtime_start_result
 
 
-def _extract_ray_nodes():
+def _extract_ray_nodes(main_port):
     try:
         completed_proc = subprocess.run(
-            [sys.executable, RAY_NODE_EXTRACTOR_FILE, resolve_main_ip()],
+            [
+                sys.executable,
+                RAY_NODE_EXTRACTOR_FILE,
+                resolve_main_ip(),
+                str(main_port),
+            ],
             check=True,
             capture_output=True,
         )
         data_str = completed_proc.stdout.decode()
         return json.loads(data_str)
     except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode() if e.stderr else ""
+        stdout = e.stdout.decode() if e.stdout else ""
+        warning_message(
+            "Failed to extract ray nodes (subprocess error). "
+            f"Return code: {e.returncode}. Stderr: {stderr[:200]}. Stdout: {stdout[:200]}"
+        )
         return None
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        warning_message(f"Failed to decode ray nodes JSON. Error: {str(e)[:200]}")
         return None
 
 
-def wait_for_ray_nodes_to_join(max_wait_time):
+def wait_for_ray_nodes_to_join(max_wait_time, main_port):
     # This function will wait until all ray nodes have joined the cluster.
     # If nodes have not joined after a certain amount of timeout it will raise an exception.
     # We leverage subprocesses to extract the number of nodes that have joined the cluster.
@@ -149,7 +161,7 @@ def wait_for_ray_nodes_to_join(max_wait_time):
     start_time = time.time()
     _iters = 0
     while True:
-        ray_nodes = _extract_ray_nodes()
+        ray_nodes = _extract_ray_nodes(main_port)
         if ray_nodes is not None:
             if len(ray_nodes) == current.parallel.num_nodes:
                 warning_message(
