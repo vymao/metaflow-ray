@@ -106,7 +106,6 @@ class RayDecorator(ParallelDecorator):
         )
         self.flow_datastore = flow_datastore
         self._heartbeat_thread = None
-        self.ray_temp_dir = None
 
         # Validate log_style parameter
         log_style = self.attributes.get("log_style")
@@ -245,14 +244,14 @@ class RayDecorator(ParallelDecorator):
             # that will ensure that user code execution will only start when
             # all nodes have started. This ensures that user code will have
             # access to a ray cluster with expected number of nodes.
-            self.setup_distributed_env(flow)
+            ray_temp_dir = self.setup_distributed_env(flow)
 
             # Optionally tail Ray actor/task stdout/stderr
             # Only captures worker-*.out and worker-*.err files (actor output)
             log_tailer = None
             if self.attributes["enable_worker_logs"]:
                 log_tailer = RayLogTailer(
-                    ray_temp_dir=self.ray_temp_dir,
+                    ray_temp_dir=ray_temp_dir,
                     poll_interval=1.0,
                     include_patterns=["worker-*.out", "worker-*.err"],
                 )
@@ -307,11 +306,14 @@ class RayDecorator(ParallelDecorator):
         - Wait for tasks to have started.
         - start the subsequent ray processes.
         - Wait for all ray nodes to join the cluster (on both worker and control.)
+
+        Returns:
+            str: Path to the Ray temporary directory
         """
         self.wait_for_all_nodes_to_start()
 
         # Create a temporary directory for Ray
-        self.ray_temp_dir = tempfile.mkdtemp(prefix="metaflow_ray_")
+        ray_temp_dir = tempfile.mkdtemp(prefix="metaflow_ray_")
 
         main_port = self._resolve_port()
         main_ip = resolve_main_ip()
@@ -320,10 +322,12 @@ class RayDecorator(ParallelDecorator):
             main_ip,
             main_port,
             current.parallel.node_index,
-            temp_dir=self.ray_temp_dir,
+            temp_dir=ray_temp_dir,
             logging_level=self.attributes["logging_level"],
             log_style=self.attributes["log_style"],
         )
         wait_for_ray_nodes_to_join(
             self.attributes["all_nodes_started_timeout"] or 300, main_port
         )
+
+        return ray_temp_dir
