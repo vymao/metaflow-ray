@@ -35,6 +35,19 @@ class RayLogTailer:
                 f"[RAY_LOG_TAILER] Checking for session_latest at: /tmp: {os.listdir('/tmp')}"
             )
 
+            # Print contents of every subdirectory in /tmp
+            try:
+                for item in os.listdir("/tmp"):
+                    item_path = os.path.join("/tmp", item)
+                    if os.path.isdir(item_path):
+                        try:
+                            contents = os.listdir(item_path)
+                            print(f"[RAY_LOG_TAILER] /tmp/{item}: {contents}")
+                        except (PermissionError, OSError) as e:
+                            print(f"[RAY_LOG_TAILER] /tmp/{item}: [cannot read - {e}]")
+            except Exception as e:
+                print(f"[RAY_LOG_TAILER] Error listing /tmp subdirectories: {e}")
+
             session_latest = os.path.join(self.ray_temp_dir, "session_latest")
             print(f"[RAY_LOG_TAILER] Checking for session_latest at: {session_latest}")
             if os.path.exists(session_latest):
