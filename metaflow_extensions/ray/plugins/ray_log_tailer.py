@@ -31,6 +31,9 @@ class RayLogTailer:
             print(
                 f"[RAY_LOG_TAILER] Checking for session_latest at: {self.ray_temp_dir}: {os.listdir(self.ray_temp_dir)}"
             )
+            print(
+                f"[RAY_LOG_TAILER] Checking for session_latest at: /tmp: {os.listdir('/tmp')}"
+            )
 
             session_latest = os.path.join(self.ray_temp_dir, "session_latest")
             print(f"[RAY_LOG_TAILER] Checking for session_latest at: {session_latest}")
